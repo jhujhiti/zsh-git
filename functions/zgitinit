@@ -25,12 +25,13 @@ zgit_precmd_hook() {
 zgit_info_update() {
 	zgit_info=()
 
-	local gitdir="$(git rev-parse --show-toplevel 2>/dev/null)"
+	local gitdir="$(git rev-parse --git-dir 2>/dev/null)"
 	if [ $? -ne 0 ] || [ -z "$gitdir" ]; then
 		return
 	fi
 
 	zgit_info[dir]=$gitdir
+	zgit_info[root]=$(git rev-parse --show-toplevel)
 	zgit_info[bare]=$(git rev-parse --is-bare-repository)
 	zgit_info[inwork]=$(git rev-parse --is-inside-work-tree)
 }
@@ -90,10 +91,8 @@ zgit_branch() {
 	zgit_isbare && return 1
 
 	if [ -z "$zgit_info[branch]" ]; then
-		local branch=$(git symbolic-ref HEAD 2>/dev/null)
-		if [ $? -eq 0 ]; then
-			branch=${branch##*/}
-		else
+		local branch=$(git symbolic-ref --short HEAD 2>/dev/null)
+		if [ $? -ne 0 ]; then
 			branch=$(git name-rev --name-only --always HEAD)
 		fi
 		zgit_info[branch]=$branch
@@ -145,7 +144,7 @@ zgit_tracking_merge() {
 	if [ -n "$remote" ]; then # tracking branch
 		local merge=$(git config branch.$branch.merge)
 		if [ $remote != "." ]; then
-			merge=$remote/$(basename $merge)
+			merge=$remote/${merge#refs/heads/}
 		fi
 		echo $merge
 		return 0
@@ -165,7 +164,7 @@ zgit_isindexclean() {
 
 zgit_isworktreeclean() {
 	zgit_isgit || return 1
-	if [ -z "$(git ls-files $zgit_info[dir] --modified)" ]; then
+	if [ -z "$(git ls-files $zgit_info[root] --modified)" ]; then
 		return 0
 	else
 		return 1
